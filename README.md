@@ -1,46 +1,90 @@
-# CNC Guard · Erronka 1
+# CNC Guard · Industrial Predictive Maintenance & Telemetry Demo
 
-Primera implementación de una demo local de mantenimiento industrial: descarga de
-AI4I (UCI), validación, clasificación supervisada, Isolation Forest, evaluación,
-panel Streamlit e historial SQLite. Estado: código preparado; ejecución pendiente
-de recuperar el entorno de comandos. No se han obtenido métricas reales todavía.
+> **Local-first industrial predictive maintenance prototype: UCI AI4I dataset ingestion, zero-leakage preprocessing, supervised model selection with $F_2$ threshold optimization, Isolation Forest anomaly detection, and an interactive Streamlit monitoring dashboard.**
 
-## Qué demuestra
+[![Status: Prototype](https://img.shields.io/badge/Status-Prototype_%2F_WIP-blue?style=flat-square)](#)
+[![Stack: Python & ML](https://img.shields.io/badge/Stack-Python_3.11%2B_%7C_scikit--learn-6D28D9?style=flat-square&logo=python)](#)
+[![Dashboard: Streamlit](https://img.shields.io/badge/UI-Streamlit_%7C_FastAPI-FF4B4B?style=flat-square&logo=streamlit)](#)
+[![Dataset: UCI AI4I](https://img.shields.io/badge/Dataset-UCI_AI4I_2020_(CC_BY_4.0)-green?style=flat-square)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-gray?style=flat-square)](LICENSE)
 
-- Compara Dummy, regresión logística y Random Forest; selecciona por average precision
-  en validación y ajusta el umbral por F2 en validación.
-- Conserva el orden UDI con particiones 60/20/20. Es orden del fichero, no tiempo físico.
-- Excluye identificadores, etiqueta principal y etiquetas de tipos de fallo de las entradas.
-- Ajusta el preprocesamiento solo en entrenamiento. No usa SMOTE.
-- Isolation Forest detecta lecturas inusuales; una anomalía no equivale a avería.
-- Permite editar una lectura y guardar el resultado localmente, con versión del modelo.
-- Se abstiene cuando una lectura excede los rangos de entrenamiento.
+---
 
-## Arranque en Windows
+## 📊 Interactive Telemetry & Inference Dashboard
+
+<p align="center">
+  <img src="assets/dashboard-preview.png" alt="CNC Guard Streamlit Dashboard Preview" width="100%" style="max-width: 900px; border-radius: 8px; border: 1px solid #334155;" />
+  <br/>
+  <em>Figure 1: Streamlit local monitoring interface: real-time telemetry inspection, threshold decision boundaries, and Isolation Forest anomaly status.</em>
+</p>
+
+---
+
+## 📐 End-to-End Machine Learning Pipeline
+
+```mermaid
+flowchart LR
+    subgraph Data["1. Data Ingestion & Splitting"]
+        UCI["UCI AI4I 2020<br/>(10,000 synthetic records)"] --> Split["Sequential Split<br/>(60% Train / 20% Val / 20% Test)"]
+    end
+
+    subgraph Preprocessing["2. Leakage-Free Preprocessing"]
+        Split --> Clean["Exclude IDs & Sub-failure labels<br/>(Fit scalers on Train only)"]
+    end
+
+    subgraph Models["3. Model Selection & Tuning"]
+        Clean --> Train["Supervised Benchmark<br/>(Logistic Regression vs Random Forest)"]
+        Clean --> iForest["Unsupervised Outlier Detection<br/>(Isolation Forest)"]
+        Train --> Tuning["Select by Average Precision<br/>Tune Threshold by F2 on Validation"]
+    end
+
+    subgraph Serving["4. Local Operational Interface"]
+        Tuning --> StreamlitUI["Streamlit Dashboard (Port 8501)"]
+        iForest --> StreamlitUI
+        StreamlitUI --> DB[("Local SQLite Audit History")]
+    end
+```
+
+---
+
+## 💡 Qué demuestra
+
+- **Selección de modelos rigurosa:** Compara Dummy, regresión logística y Random Forest; selecciona por average precision en validación y ajusta el umbral por $F_2$ en validación (priorizando exhaustividad/recall para mantenimiento preventivo).
+- **Prevención de Data Leakage:** Conserva el orden UDI con particiones 60/20/20 (orden físico de generación en fichero). Excluye identificadores, etiqueta principal y etiquetas de tipos de fallo de las entradas.
+- **Ajuste aislado:** Ajusta el preprocesamiento exclusivamente en el conjunto de entrenamiento. No utiliza sobremuestreo artificial (SMOTE) no justificado.
+- **Detección dual:** Isolation Forest detecta lecturas atípicas fuera de distribución; una anomalía estadística no se equipara falsamente a una avería de hardware.
+- **Historial local:** Permite editar parámetros de telemetría y persistir el diagnóstico localmente en SQLite, registrando la versión exacta del modelo.
+- **Abstención:** El sistema se abstiene de clasificar cuando una lectura excede los rangos observados durante el entrenamiento.
+
+---
+
+## 🚀 Arranque en Windows
 
 Desde esta carpeta, con Python 3.11 o superior disponible:
 
 ```powershell
+# 1. Crear y preparar entorno virtual
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+
+# 2. Descargar dataset y entrenar pipeline
 .\.venv\Scripts\python.exe -m cnc_guard.cli demo
+
+# 3. Lanzar panel interactivo Streamlit
 .\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1
 ```
 
-El panel se abre en http://127.0.0.1:8501. `demo` descarga unos 510 KB de UCI,
-entrena en CPU y genera `artifacts/report.json`, `model.joblib` y
-`test_predictions.csv`. No requiere claves API ni servicios de pago.
-No activar el entorno virtual evita depender de cambios en la política PowerShell.
-La instalación usa pip porque este proyecto es Python, sin dependencias Node.
-Las dependencias tienen intervalos compatibles; falta congelarlas tras una instalación validada.
+El panel se abre en `http://127.0.0.1:8501`. `demo` descarga unos 510 KB de UCI, entrena en CPU y genera `artifacts/report.json`, `model.joblib` y `test_predictions.csv`. No requiere claves API externas ni servicios de pago.
 
-Para usar datos ya descargados:
+Para usar datos ya descargados previamente:
 
 ```powershell
 .\.venv\Scripts\python.exe -m cnc_guard.cli train --data data/raw/ai4i2020.csv
 ```
 
-## Verificación
+---
+
+## 🧪 Verificación y Tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
@@ -48,37 +92,34 @@ Para usar datos ya descargados:
 .\.venv\Scripts\python.exe -m build
 ```
 
-Las pruebas usan una fixture artificial identificada expresamente como tal. Sus
-resultados no sustituyen la evaluación de AI4I. El script de entrenamiento requiere
-ambas clases en cada partición y falla explícitamente si no se cumple.
+Las pruebas unitarias utilizan una fixture artificial identificada expresamente como tal. Sus resultados no sustituyen la evaluación de AI4I. El script de entrenamiento requiere ambas clases en cada partición y falla explícitamente si la distribución no se cumple.
 
-## Dataset y límites
+---
 
-[AI4I 2020, UCI](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset),
-DOI 10.24432/C5HS5C, CC BY 4.0. La fuente describe 10.000 filas sintéticas, no
-mediciones de las 50 máquinas de ARAKAIN. El archivo se descarga sin modificaciones;
-su SHA256 y auditoría se registran al ejecutarlo. No se atribuye a UDI una frecuencia
-de muestreo. Las temperaturas tienen dependencia en su generación; por eso se evita
-mezclar aleatoriamente todas las filas. El split no valida transferencia a otra fábrica.
+## 📊 Dataset y Límites Científicos
 
-El objetivo es `Machine failure` de la misma fila. El score no está calibrado;
-**no es una probabilidad de fallo futuro**, ni permite RUL o anticipación de 24 h.
-CRITICAL es una prioridad de revisión de la demo, no una orden de parada.
-El timestamp guardado es el momento de consulta, nunca una fecha del dataset.
+- **Fuente:** [AI4I 2020, UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset), DOI `10.24432/C5HS5C`, CC BY 4.0.
+- **Naturaleza de los datos:** La fuente describe 10.000 filas sintéticas que reflejan parámetros físicos de fresado CNC (temperaturas, velocidad de giro, par, desgaste de herramienta).
+- **Límites de inferencia:** El objetivo es `Machine failure` de la misma fila. El score no está calibrado: **no es una probabilidad de fallo futuro en el tiempo**, ni permite calcular vida útil remanente (RUL) o anticipación temporal garantizada de 24 horas.
+- **Prioridad de revisión:** La etiqueta `CRITICAL` en la demo indica prioridad de inspección técnica, nunca una orden automática de parada en planta real.
+- **Trazabilidad:** El timestamp guardado en SQLite corresponde al momento de la consulta del usuario, no a una fecha simulada del dataset.
 
-## Reutilización de GitHub
+---
 
-`src/cnc_guard/models.py` adapta la selección de modelos de `CNC.model_map` en
-[Shengwei-Peng/CNC-Predictive-Maintenance](https://github.com/Shengwei-Peng/CNC-Predictive-Maintenance),
-commit `20308e0cc0093882f66d3602d15c2d234b0f311b`. Se conserva su licencia MIT en
-`third_party/`. El resto es integración propia; no se ha importado el repositorio completo.
-La separación entre datos, entrenamiento, inferencia y panel toma como referencia
-la arquitectura de `devwithmohit/predictive-maintenance-manufacturing-system`.
-Ver `docs/research.md` para decisiones y diferencias.
+## 📚 Atribución y Reutilización de Código
 
-## Qué falta para completar la Erronka
+- `src/cnc_guard/models.py` adapta la selección de modelos de `CNC.model_map` en [Shengwei-Peng/CNC-Predictive-Maintenance](https://github.com/Shengwei-Peng/CNC-Predictive-Maintenance) (commit `20308e0cc0093882f66d3602d15c2d234b0f311b`). Se conserva íntegramente su licencia MIT en `third_party/`.
+- La separación modular entre ingestión de datos, entrenamiento, inferencia y panel toma como referencia arquitectónica el diseño de `devwithmohit/predictive-maintenance-manufacturing-system`. Consultar `docs/research.md` para el desglose detallado de decisiones.
 
-Ver `docs/erronka1.md`: el prototipo cubre una base de programación, ML y visualización.
-Quedan validación ejecutada, datos de degradación temporal, justificación de anticipación,
-evidencias de Big Data, memoria final, planificación de equipo y defensa.
-No se presenta la Erronka completa como terminada.
+---
+
+## 🗺️ Estado del Proyecto & Alcance
+
+Consultar `docs/erronka1.md`: Este prototipo cubre la base técnica de ingeniería de datos, modelado ML y visualización local.
+Quedan declarados como trabajo futuro: validación con telemetría de degradación temporal continua, justificación de anticipación dinámica en fábrica, y memoria técnica final. No se presenta como un producto final comercializado.
+
+---
+
+## 👤 Autor
+
+- **Iker Nistal Fernandez** ([@Niistal](https://github.com/Niistal))
